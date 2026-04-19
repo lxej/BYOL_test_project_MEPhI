@@ -1,6 +1,4 @@
 # BYOL_test_project_MEPhI
-![Training Loss](./loss_curve.png)
-Markdown
 
 # Реализация алгоритма BYOL (Bootstrap Your Own Latent) на PyTorch
 
