@@ -30,48 +30,29 @@ def plot_loss(loss_history, save_path="loss_curve.png", window_size=5):
     plt.savefig(save_path, dpi=150)
     print(f"График со сглаживанием сохранен в {save_path}")
     plt.close()
-'''
-import matplotlib.pyplot as plt
-import torch
 
-def plot_loss(loss_history, save_path="loss_curve.png"):
-    """
-    Рисует график падения ошибки (Loss) в процессе обучения.
-    """
-    plt.figure(figsize=(10, 5))
-    plt.plot(loss_history, label='BYOL Loss', color='blue', linewidth=2)
-    plt.title("Процесс самообучения (BYOL Training Loss)")
-    plt.xlabel("Шаги обучения (Итерации)")
-    plt.ylabel("Loss (MSE между Online и Target)")
-    plt.grid(True)
-    plt.legend()
-    plt.savefig(save_path)
-    print(f"График лосса сохранен в {save_path}")
-    plt.close()
 
-def show_augmented_pair(original_img_tensor, view1, view2):
-    """
-    Показывает оригинал и два искаженных вида, которые идут в сети.
-    """
-    # Денормализация для красивой отрисовки
-    inv_normalize = transforms.Normalize(
-        mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
-        std=[1/0.229, 1/0.224, 1/0.225]
-    )
+def save_metrics_report(accuracy, diversity, save_path="metrics_report.png"):
+    plt.figure(figsize=(8, 5))
+    plt.axis('off') # Убираем оси
     
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # Рисуем красивую рамку
+    plt.text(0.5, 0.8, f"BYOL Self-Supervised Evaluation", 
+             fontsize=20, ha='center', weight='bold', color='#2c3e50')
     
-    # Конвертируем тензоры обратно в картинки для matplotlib
-    imgs = [original_img_tensor, inv_normalize(view1), inv_normalize(view2)]
-    titles = ["Оригинал", "Вид 1 (Для Онлайн-сети)", "Вид 2 (Для Целевой сети)"]
+    # Метрика 1: Точность
+    plt.text(0.5, 0.5, f"k-NN Accuracy (k=5): {accuracy*100:.2f}%", 
+             fontsize=18, ha='center', color='#2980b9')
     
-    for ax, img, title in zip(axes, imgs, titles):
-        # Переводим формат из (C, H, W) в (H, W, C)
-        ax.imshow(img.permute(1, 2, 0).clip(0, 1).numpy())
-        ax.set_title(title)
-        ax.axis('off')
-        
+    # Метрика 2: Разнообразие
+    color_div = '#27ae60' if diversity > 0.1 else '#e74c3c'
+    plt.text(0.5, 0.3, f"Feature Diversity (Std): {diversity:.4f}", 
+             fontsize=18, ha='center', color=color_div)
+    
+    # Подпись
+    plt.text(0.5, 0.1, "Model: ResNet-18 | Dataset: CIFAR-10", 
+             fontsize=12, ha='center', color='#7f8c8d')
+    
     plt.tight_layout()
-    plt.show()
-
-'''
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()

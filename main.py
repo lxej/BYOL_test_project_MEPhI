@@ -1,18 +1,21 @@
 import torch
 from torch.utils.data import DataLoader
-from torchvision.datasets import FakeData # Заглушка, пока нет своих фото
+#from torchvision.datasets import FakeData # Заглушка, пока нет своих фото
 from tqdm import tqdm
-from torchvision import datasets
+from torchvision import datasets, transforms # Убедись, что transforms импортирован
+from metrics import evaluate_knn_and_diversity # Наш новый файл
 
 # Импортируем наши собственные модули
 from model import get_encoder
 from augmentations import get_byol_transforms
 from visualize import plot_loss
 from byol_pytorch import BYOL
+import torch_directml
 
 def train():
     # 1. Настройки (Гиперпараметры)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # Вместо device = torch.device('cuda'...)
+    device = torch_directml.device()
     epochs = 10
     batch_size = 8
     lr = 3e-4
@@ -21,23 +24,24 @@ def train():
     print(f"Используем устройство: {device}")
 
     # 2. Подготовка данных
-    # В реальности здесь будет: datasets.ImageFolder(root='path/to/data', transform=...)
-    # Но для теста используем FakeData, чтобы код запустился сразу
-    transform = get_byol_transforms(image_size=image_size)
+    train_transform = get_byol_transforms(image_size=image_size)
+    test_transform = transforms.Compose([
+        transforms.Resize((image_size, image_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
 
-    train_dataset = datasets.CIFAR10(
-    root='./data',       # Папка, куда скачаются картинки
-    train=True, 
-    download=True,       # Программа сама скачает их из интернета при первом запуске
-    transform=transform  # Твои аугментации из augmentations.py
-    )
-
+    # Данные для обучения (с аугментациями)
+    train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=train_transform)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    '''
-    dataset = FakeData(size=100, image_size=(3, image_size, image_size), transform=transform)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-    '''
-    
+
+    # Данные для ТЕСТА (чистые)
+    test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size * 4, shuffle=False)
+
+    # Данные для МЕТРИК (те же train-картинки, но БЕЗ аугментаций)
+    train_eval_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=test_transform)
+    train_eval_loader = DataLoader(train_eval_dataset, batch_size=batch_size * 4, shuffle=False)
     # 3. Инициализация модели
     # Берем ResNet-18 из нашего model.py
     resnet = get_encoder('resnet18', pretrained=True)
@@ -83,13 +87,13 @@ def train():
 
     # 5. Финализация
     print("Обучение завершено!")
-    
-    # Сохраняем веса только базового энкодера (ResNet)
-    # Это то, что мы потом будем использовать для классификации
     torch.save(resnet.state_dict(), 'byol_final_model.pt')
-    
-    # Рисуем график лосса через наш визуализатор
     plot_loss(loss_history)
+
+    # --- НОВОЕ: Запуск метрик ---
+    print("\nЗапуск финальной оценки качества...")
+    # Используем train_eval_loader (чистый), чтобы k-NN не офигел от аугментаций
+    evaluate_knn_and_diversity(resnet, train_eval_loader, test_loader, device)
 
 if __name__ == "__main__":
     train()
